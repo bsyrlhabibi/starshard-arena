@@ -6,7 +6,7 @@
 // this module owns their geometry so main.js can route clicks by name.
 
 import { ARENA } from './entities.js';
-import { COLORS } from './render.js';
+import { COLORS } from './palette.js';
 
 const TAU = Math.PI * 2;
 
@@ -83,9 +83,13 @@ export function drawTitle(ctx, state) {
     rects.push(rect);
   });
 
-  text(ctx, 'WASD / ARROWS — move        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 470, 14, COLORS.dim);
-  text(ctx, 'SHIFT — dash (its wake burns)        E — Starfall        P — pause        M — sound', cx, 494, 14, COLORS.dim);
-  if (state.best > 0) text(ctx, `BEST SCORE  ${state.best.toLocaleString('en-US')}`, cx, 522, 15, COLORS.shard, 'center', 800);
+  text(ctx, 'WASD / ARROWS — move        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 466, 14, COLORS.dim);
+  text(ctx, 'SHIFT — dash (its wake burns)        E — Starfall        P — pause        M — sound', cx, 488, 14, COLORS.dim);
+  if (state.best > 0) text(ctx, `BEST SCORE  ${state.best.toLocaleString('en-US')}`, cx, 512, 15, COLORS.shard, 'center', 800);
+  const rec = state.record;
+  if (rec && rec.runs > 0) {
+    text(ctx, `PILOT RECORD — ${rec.runs} SORTIES · ${rec.kills.toLocaleString('en-US')} HOLLOW FELLED · ${rec.elites} NAMED ELITES DOWN · DEEPEST WAVE ${rec.bestWave}`, cx, 532, 12.5, COLORS.dim, 'center', 700);
+  }
   return rects;
 }
 
@@ -169,8 +173,13 @@ export function drawGameOver(ctx, state) {
     text(ctx, `best score ${state.best.toLocaleString('en-US')}`, cx, 326, 16, COLORS.dim);
   }
 
-  const again = drawButton(ctx, buttonRect('restart', cx - 140, 366, 280, 56), '↻  PLAY AGAIN (R)', state.mouse, COLORS.ship);
-  text(ctx, 'every run builds a different blaster — the swarm remembers nothing', cx, 462, 14, COLORS.dim);
+  const rec = state.record;
+  if (rec && rec.runs > 0) {
+    text(ctx, `PILOT RECORD — ${rec.runs} SORTIES · ${rec.kills.toLocaleString('en-US')} HOLLOW FELLED · ${rec.elites} NAMED ELITES DOWN · ${rec.cores} CORES STOLEN · DEEPEST WAVE ${rec.bestWave}`, cx, 352, 13.5, COLORS.shard, 'center', 700);
+  }
+
+  const again = drawButton(ctx, buttonRect('restart', cx - 140, 380, 280, 56), '↻  PLAY AGAIN (R)', state.mouse, COLORS.ship);
+  text(ctx, 'every run builds a different blaster — but the pilot record remembers everything', cx, 470, 14, COLORS.dim);
   return [again];
 }
 

@@ -9,6 +9,7 @@
 import { createAudio } from './audio.js';
 import {
   ARENA,
+  ENEMY_KINDS,
   PICKUP_KINDS,
   burst,
   createEnemy,
@@ -34,7 +35,10 @@ import {
   updateWake,
 } from './entities.js';
 import { createInput } from './input.js';
-import { COLORS, drawBanner, drawHud, drawWorld, makeNebula, makeStarfield } from './render.js';
+import { makeNebula, makeStarfield } from './backdrop.js';
+import { drawBanner, drawHud } from './hud.js';
+import { COLORS, sectorForWave } from './palette.js';
+import { drawWorld } from './render.js';
 import { makeRng } from './rng.js';
 import { drawGameOver, drawPause, drawTitle, drawUpgrade, pointInRect } from './screens.js';
 import { stageShot } from './shots.js';
@@ -77,6 +81,28 @@ function saveBest(value) {
   }
 }
 
+// The pilot record: the meta-progression that outlives any one run —
+// sorties flown, Hollow felled, named elites brought down, Cores
+// stolen, and the deepest wave ever reached. It is the game's memory
+// of its pilot, shown on the title and the results screen.
+function loadRecord() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem('starshard-record') ?? 'null');
+    if (raw && typeof raw === 'object') return { runs: 0, kills: 0, elites: 0, cores: 0, bestWave: 0, bestScore: 0, ...raw };
+  } catch {
+    // Corrupt or refused storage just means a fresh record.
+  }
+  return { runs: 0, kills: 0, elites: 0, cores: 0, bestWave: 0, bestScore: 0 };
+}
+
+function saveRecord(record) {
+  try {
+    window.localStorage.setItem('starshard-record', JSON.stringify(record));
+  } catch {
+    // Private modes refuse storage; the record just lasts the visit.
+  }
+}
+
 function freshState(runSeed) {
   const rng = makeRng(runSeed);
   return {
@@ -100,7 +126,7 @@ function freshState(runSeed) {
     floaters: [],
     // Timed stolen skills, in seconds left. The Forge sells permanence;
     // Cores rent it, mid-fight, for free — that tension is the game.
-    effects: { overdrive: 0, seekers: 0, piercing: 0 },
+    effects: { overdrive: 0, seekers: 0, piercing: 0, lance: 0 },
     starfallReady: false,
     coresCollected: 0,
     modifier: null,
@@ -118,6 +144,12 @@ function freshState(runSeed) {
     letterbox: 0,
     ghostTimer: 0,
     difficulty: DIFFICULTIES.standard,
+    beam: null,
+    sectorIndex: 0,
+    waveTotal: 0,
+    kills: 0,
+    elitesDown: 0,
+    record: loadRecord(),
     spawnQueue: [],
     spawnTimer: 0,
     wave: 0,
@@ -157,9 +189,11 @@ function addFloater(x, y, text, color, size = 14, life = 1.1) {
 function startRun() {
   const best = state.best;
   const difficulty = state.difficulty;
+  const record = state.record;
   state = freshState((Date.now() % 100000) + 17);
   state.best = best;
   state.difficulty = difficulty;
+  state.record = record;
   state.screen = 'play';
   beginWave(1);
   audio.unlock();
@@ -168,6 +202,9 @@ function startRun() {
 
 function beginWave(wave) {
   state.wave = wave;
+  const sector = sectorForWave(wave);
+  const crossedSector = sector.index !== state.sectorIndex;
+  state.sectorIndex = sector.index;
   state.spawnQueue = buildWave(wave, state.rng, ARENA.width, ARENA.height, state.difficulty);
   state.modifier = rollModifier(wave, state.rng);
   state.shardMul = state.modifier?.id === 'rush' ? 2 : 1;
@@ -178,6 +215,7 @@ function beginWave(wave) {
       .filter((e) => e.kind === 'chaser' || e.kind === 'dart' || e.kind === 'mini');
     state.spawnQueue.push(...extra);
   }
+  state.waveTotal = state.spawnQueue.length;
   state.spawnTimer = 0.4;
   if (state.player !== null) state.player.shield = Math.max(state.player.shield, state.taken.aegis ?? 0);
   if (wave % 5 === 0) {
@@ -189,7 +227,13 @@ function beginWave(wave) {
     return;
   }
   const label = waveLabel(wave);
-  const subtitle = [label, state.modifier?.label].filter(Boolean).join('  ·  ');
+  if (crossedSector && wave > 1) {
+    // Crossing into a new sector is the run's geography changing:
+    // the banner names the place before it names the wave.
+    setBanner(`◈ ${sector.name} ◈`, `WAVE ${wave} · ${label}`, 2.0);
+    return;
+  }
+  const subtitle = [label, state.modifier?.label, sector.name].filter(Boolean).join('  ·  ');
   setBanner(`WAVE ${wave}`, subtitle, 1.7);
 }
 
@@ -199,6 +243,14 @@ function endRun() {
     state.best = state.score;
     saveBest(state.best);
   }
+  const record = state.record;
+  record.runs += 1;
+  record.kills += state.kills;
+  record.elites += state.elitesDown;
+  record.cores += state.coresCollected;
+  record.bestWave = Math.max(record.bestWave, state.wave);
+  record.bestScore = Math.max(record.bestScore, state.score);
+  saveRecord(record);
   audio.gameOver();
 }
 
@@ -207,7 +259,8 @@ function rollDropKind() {
   const table = [
     ['overdrive', 20],
     ['seekers', 18],
-    ['piercing', 18],
+    ['piercing', 16],
+    ['lance', 12],
     ['nova', 14],
     ['magnet', 12],
     ['aegis', 10],
@@ -230,6 +283,7 @@ function dropCore(x, y) {
 function killEnemy(enemy) {
   const at = state.enemies.indexOf(enemy);
   if (at >= 0) state.enemies.splice(at, 1);
+  state.kills += 1;
   state.combo += 1;
   state.comboTimer = 2.2;
   state.bestCombo = Math.max(state.bestCombo, state.combo);
@@ -258,6 +312,14 @@ function killEnemy(enemy) {
   if (enemy.kind === 'boss') {
     state.shake = Math.max(state.shake, 12);
     setBanner('DREADNOUGHT DOWN', `+${gained.toLocaleString('en-US')} · the dark gets quieter`, 2.2);
+  }
+  if (enemy.elite) {
+    // A named terror falls: the banner carries its name like an
+    // obituary headline, the way rival banners carry a racer's.
+    state.elitesDown += 1;
+    if (enemy.eliteName) {
+      setBanner(`☠ ${enemy.eliteName} IS DOWN`, `elite ${ENEMY_KINDS[enemy.kind].name} destroyed · +${gained.toLocaleString('en-US')}`, 1.9);
+    }
   }
   if (enemy.kind === 'splitter') {
     // A splitter dies as two minis, already angry and already moving.
@@ -340,6 +402,7 @@ function applyPickup(pickup) {
   if (kind === 'overdrive') state.effects.overdrive = def.seconds;
   else if (kind === 'seekers') state.effects.seekers = def.seconds;
   else if (kind === 'piercing') state.effects.piercing = def.seconds;
+  else if (kind === 'lance') state.effects.lance = def.seconds;
   else if (kind === 'aegis') player.shield = Math.min(2, player.shield + 1);
   else if (kind === 'repair') player.hp = Math.min(player.maxHp, player.hp + 1);
   else if (kind === 'magnet') {
@@ -408,15 +471,48 @@ function updatePlay(dt) {
   state.effects.overdrive = Math.max(0, state.effects.overdrive - dt);
   state.effects.seekers = Math.max(0, state.effects.seekers - dt);
   state.effects.piercing = Math.max(0, state.effects.piercing - dt);
+  state.effects.lance = Math.max(0, state.effects.lance - dt);
   if (state.starfallReady && input.wasPressed('KeyE')) unleashStarfall();
   if (state.screen !== 'play') return;
 
-  // Fire. Overdrive squeezes the cycle; a Piercing Core lends every
-  // fresh bolt one extra hull to fly through.
-  const fresh = playerShots(player, input, audio);
-  if (state.effects.overdrive > 0 && fresh.length > 0) player.fireCooldown *= 0.55;
-  if (state.effects.piercing > 0) for (const b of fresh) b.pierce += 1;
-  state.bullets.push(...fresh);
+  // Fire. While a stolen Lance Core burns, the blaster pours one
+  // continuous beam instead of bolts: everything standing in the
+  // light takes damage every frame, and the beam is drawn from the
+  // state it leaves behind. Otherwise, bolts — Overdrive squeezes
+  // the cycle; a Piercing Core lends each one an extra hull.
+  state.beam = null;
+  if (state.effects.lance > 0 && input.firing()) {
+    player.fireCooldown = 0.05;
+    const angle = player.angle;
+    const range = 780;
+    let farthest = 0;
+    for (const enemy of [...state.enemies]) {
+      const dx = enemy.x - player.x;
+      const dy = enemy.y - player.y;
+      const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+      if (along < -10 || along > range + enemy.radius) continue;
+      const perp = Math.abs(dy * Math.cos(angle) - dx * Math.sin(angle));
+      if (perp > 30 + enemy.radius * 0.55) continue;
+      enemy.hp -= 10 * dt;
+      enemy.flashTime = 0.06;
+      if (along > farthest) farthest = along;
+      if (state.rng.next() < 0.35) {
+        burst(state.particles, enemy.x + state.rng.range(-9, 9), enemy.y + state.rng.range(-9, 9), state.rng, '#ffe066', 1, 130);
+      }
+      if (enemy.hp <= 0) killEnemy(enemy);
+    }
+    state.beam = {
+      x: player.x + Math.cos(angle) * 26,
+      y: player.y - 26 + Math.sin(angle) * 8,
+      angle,
+      length: farthest > 0 ? Math.min(range, farthest + 26) : range,
+    };
+  } else {
+    const fresh = playerShots(player, input, audio);
+    if (state.effects.overdrive > 0 && fresh.length > 0) player.fireCooldown *= 0.55;
+    if (state.effects.piercing > 0) for (const b of fresh) b.pierce += 1;
+    state.bullets.push(...fresh);
+  }
 
   // The dash leaves an ion wake: a burning ribbon that punishes
   // anything that follows the ship through its own escape line.
@@ -736,8 +832,15 @@ function draw() {
         { label: 'OVERDRIVE', seconds: state.effects.overdrive, color: PICKUP_KINDS.overdrive.color },
         { label: 'SEEKERS', seconds: state.effects.seekers, color: PICKUP_KINDS.seekers.color },
         { label: 'PIERCING', seconds: state.effects.piercing, color: PICKUP_KINDS.piercing.color },
+        { label: 'LANCE BEAM', seconds: state.effects.lance, color: PICKUP_KINDS.lance.color },
       ].filter((e) => e.seconds > 0),
       starfallReady: state.starfallReady,
+      sector: sectorForWave(state.wave),
+      hostiles: state.enemies.length + state.spawnQueue.length,
+      waveTotal: state.waveTotal,
+      elapsed: state.elapsed,
+      enemies: state.enemies,
+      pickups: state.pickups,
     });
     drawBanner(ctx, state.banner, state.elapsed);
   }

@@ -7,7 +7,7 @@
 // also how a person can peek at every screen without playing to it.
 
 import { burst, createEnemy, createMissile, createOrb, createPickup, createPlayer, createRift, createShard } from './entities.js';
-import { COLORS } from './render.js';
+import { COLORS, sectorForWave } from './palette.js';
 import { UPGRADES } from './upgrades.js';
 
 function place(state, kind, x, y, elite = false) {
@@ -23,6 +23,9 @@ export function stageShot(state, name) {
 
   if (name === 'start') {
     state.screen = 'title';
+    state.sectorIndex = 0;
+    state.record = { runs: 14, kills: 2310, elites: 9, cores: 121, bestWave: 11, bestScore: 41850 };
+    state.best = 41850;
     // A quiet patrol drifting behind the title veil — the full cast,
     // with the Dreadnought's silhouette looming in the far corner.
     place(state, 'chaser', 150, 120);
@@ -43,6 +46,8 @@ export function stageShot(state, name) {
     // a stolen-seekers chip on the HUD and a Core waiting to be taken.
     state.screen = 'play';
     state.wave = 5;
+    state.sectorIndex = sectorForWave(5).index;
+    state.waveTotal = 14;
     state.score = 13900;
     state.shardBank = 23;
     state.shardsCollected = 61;
@@ -50,12 +55,25 @@ export function stageShot(state, name) {
     state.comboTimer = 1.35;
     state.bestCombo = 7;
     state.effects.seekers = 8.4;
+    state.effects.lance = 6.2;
     state.starfallReady = true;
     state.player.x = 330;
     state.player.y = 330;
     state.player.hp = 2;
     state.player.shield = 1;
     state.player.angle = -0.35;
+    // The Lance Beam, mid-burn: from the kid's blaster to the boss.
+    state.beam = {
+      x: state.player.x + Math.cos(state.player.angle) * 26,
+      y: state.player.y - 26 + Math.sin(state.player.angle) * 8,
+      angle: state.player.angle,
+      length: 352,
+    };
+    // A named terror fell a breath ago; its obituary is still up. The
+    // near-endless duration is deliberate: the banner clock runs even
+    // in a staged scene, the camera may arrive many seconds after
+    // the pose, and a normal duration would have faded by then.
+    state.banner = { title: '☠ GRANNY VEX IS DOWN', subtitle: 'elite Stinger destroyed · +2,700', time: 0.3, duration: 999 };
     const boss = createEnemy('boss', 690, 215, rng, 1.24);
     boss.hp = 52;
     boss.angle = Math.atan2(state.player.y - 215, state.player.x - 690);
@@ -119,6 +137,8 @@ export function stageShot(state, name) {
   // 'end' and anything else: the results screen.
   state.screen = 'over';
   state.wave = 7;
+  state.sectorIndex = sectorForWave(7).index;
+  state.record = { runs: 15, kills: 2488, elites: 10, cores: 130, bestWave: 11, bestScore: 41850 };
   state.score = 21840;
   state.best = 21840;
   state.shardsCollected = 96;

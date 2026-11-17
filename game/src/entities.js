@@ -76,6 +76,24 @@ export const ENEMY_KINDS = {
   boss: { name: 'Dreadnought', hp: 70, speed: 42, radius: 66, score: 2500, shards: 14, turn: 1.1 },
 };
 
+// The named terrors: every elite that gilds its way into the arena
+// carries one of these over its crown, and the banner that marks it
+// down uses the same name — the arena remembers who it lost to you.
+export const ELITE_NAMES = [
+  'VORATH THE GILDED',
+  'MOTHER THREN',
+  'SER UMBRA',
+  'KETTLEJAW',
+  'THE PALE CHOIR',
+  'GRANNY VEX',
+  'ORPHAN NINE',
+  'THE TOLLKEEPER',
+  'MADAME RIFT',
+  'CAPTAIN HOLLOW',
+  'THE QUIET FEAST',
+  'BROTHER LANTERN',
+];
+
 export function createEnemy(kind, x, y, rng, hpScale, elite = false) {
   const base = ENEMY_KINDS[kind];
   const hp = Math.max(1, Math.round(base.hp * hpScale * (elite ? 3 : 1)));
@@ -98,6 +116,7 @@ export function createEnemy(kind, x, y, rng, hpScale, elite = false) {
     broodTime: 3.2,
     chargeTime: rng.range(3.5, 5),
     flashTime: 0,
+    eliteName: elite ? rng.pick(ELITE_NAMES) : null,
     // An elite wears a gold ring, triples its hull and always drops a
     // skill Core. Any Hollow can also grow by eating dropped shards
     // before the ship collects them — growth counts what it has eaten.
@@ -357,6 +376,7 @@ export const PICKUP_KINDS = {
   overdrive: { name: 'OVERDRIVE', letter: 'O', color: '#ffb35c', seconds: 10 },
   seekers: { name: 'SEEKER MISSILES', letter: 'S', color: '#c9a7ff', seconds: 12 },
   piercing: { name: 'PIERCING BOLTS', letter: 'P', color: '#4dd8ff', seconds: 12 },
+  lance: { name: 'LANCE BEAM', letter: 'L', color: '#ffe066', seconds: 9 },
   nova: { name: 'NOVA BURST', letter: 'N', color: '#ff5d7a', seconds: 0 },
   aegis: { name: 'AEGIS CELL', letter: 'A', color: '#7ab8ff', seconds: 0 },
   repair: { name: 'REPAIR NANITES', letter: '+', color: '#7dff9a', seconds: 0 },
