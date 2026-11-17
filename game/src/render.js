@@ -134,53 +134,159 @@ function polygon(ctx, x, y, radius, sides, rotation) {
   ctx.closePath();
 }
 
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+// One cannon of the kid's blaster rig: a chunky neon gun, drawn at a
+// grip offset, with a muzzle star on the frames right after it fires.
+function drawBlaster(ctx, gx, gy, flash) {
+  ctx.save();
+  ctx.translate(gx, gy);
+  ctx.fillStyle = '#232c52';
+  rr(ctx, -2, -4.5, 24, 9, 3);
+  ctx.fill();
+  glow(ctx, COLORS.ship, 9);
+  ctx.fillStyle = COLORS.ship;
+  ctx.fillRect(4, -1.8, 10, 3.6);
+  noGlow(ctx);
+  ctx.fillStyle = '#39406e';
+  rr(ctx, 18, -3, 8, 6, 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.shard;
+  ctx.fillRect(-4, -2.5, 3, 5);
+  if (flash) {
+    glow(ctx, COLORS.shard, 14);
+    ctx.fillStyle = COLORS.shard;
+    for (let i = 0; i < 4; i += 1) {
+      const a = (i / 4) * TAU + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(27, 0);
+      ctx.lineTo(27 + Math.cos(a - 0.32) * 6, Math.sin(a - 0.32) * 6);
+      ctx.lineTo(27 + Math.cos(a) * 11, Math.sin(a) * 11);
+      ctx.lineTo(27 + Math.cos(a + 0.32) * 6, Math.sin(a + 0.32) * 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    noGlow(ctx);
+  }
+  ctx.restore();
+}
+
+// The hero is a kid now: spiky cyan hair, a red headband with tails in
+// the wind, a yellow jacket, a teal backpack — and a blaster almost as
+// big as he is, one per cannon the Forge has sold him. He runs (boots
+// mid-stride), he blinks, his eyes stay on the aim, and the guns kick
+// back a few pixels every shot. Drawn facing +x, like everything else.
 export function drawPlayer(ctx, player, elapsed) {
   const blink = player.invulnerableTime > 0 && Math.floor(elapsed * 18) % 2 === 0;
   if (blink) return;
+  const moving = Math.hypot(player.vx, player.vy) > 30;
+  const swing = Math.sin(elapsed * (moving ? 13 : 2.2));
+  const recoil = player.fireCooldown > 0 ? Math.min(4, player.fireCooldown * 30) : 0;
+  const justFired = player.fireCooldown > player.stats.fireInterval * 0.55;
   ctx.save();
   ctx.translate(player.x, player.y);
+  ctx.fillStyle = 'rgba(2, 3, 10, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(0, 21, 20, 7, 0, 0, TAU);
+  ctx.fill();
   ctx.rotate(player.angle);
 
-  // Engine flame, longer while dashing.
-  const flame = player.dashTime > 0 ? 26 : 13 + Math.sin(elapsed * 31) * 3;
-  glow(ctx, '#ff9f43', 14);
-  ctx.fillStyle = '#ffb35c';
-  ctx.beginPath();
-  ctx.moveTo(-player.radius - 2, 5);
-  ctx.lineTo(-player.radius - flame, 0);
-  ctx.lineTo(-player.radius - 2, -5);
-  ctx.closePath();
+  // Boots, mid-stride.
+  ctx.fillStyle = '#2b3a67';
+  for (const side of [-1, 1]) {
+    const bx = -4 + swing * (moving ? 5 : 0) * side;
+    rr(ctx, bx - 5, side * 9 - 4, 11, 8, 3);
+    ctx.fill();
+  }
+  // Backpack with a glowing cell.
+  ctx.fillStyle = '#0f7d8c';
+  rr(ctx, -20, -8, 10, 16, 4);
   ctx.fill();
-
-  // The shard-ship: a swept dart hull with two wing blades, a bright
-  // spine and a cockpit eye, so it reads as a craft and not a triangle.
-  glow(ctx, COLORS.ship, 18);
   ctx.fillStyle = COLORS.ship;
+  ctx.fillRect(-18, -2, 6, 4);
+  // The yellow jacket.
+  glow(ctx, '#f5b921', 8);
+  ctx.fillStyle = '#f5b921';
   ctx.beginPath();
-  ctx.moveTo(player.radius + 7, 0); // nose
-  ctx.lineTo(-player.radius + 3, 5);
-  ctx.lineTo(-player.radius - 6, player.radius + 4); // port wing tip
-  ctx.lineTo(-player.radius - 2, 3);
-  ctx.lineTo(-player.radius - 2, -3);
-  ctx.lineTo(-player.radius - 6, -player.radius - 4); // starboard wing tip
-  ctx.lineTo(-player.radius + 3, -5);
-  ctx.closePath();
+  ctx.ellipse(-3, 0, 12, 11, 0, 0, TAU);
   ctx.fill();
   noGlow(ctx);
-  // Spine stripe from tail to nose.
-  ctx.strokeStyle = 'rgba(7, 10, 28, 0.55)';
-  ctx.lineWidth = 2.5;
+  // Arms reaching to the grips.
+  ctx.strokeStyle = '#d99a16';
+  ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.moveTo(-player.radius + 2, 0);
-  ctx.lineTo(player.radius + 3, 0);
+  ctx.moveTo(2, -6);
+  ctx.lineTo(11 - recoil, 2);
+  ctx.moveTo(2, 6);
+  ctx.lineTo(11 - recoil, 8);
   ctx.stroke();
-  // Cockpit eye.
-  ctx.fillStyle = COLORS.shipCore;
-  glow(ctx, COLORS.shipCore, 10);
+  // The blaster rig: one gun per cannon.
+  const guns = player.stats.cannons >= 3 ? [-12, 0, 12] : player.stats.cannons === 2 ? [-9, 9] : [5];
+  for (const gy of guns) drawBlaster(ctx, 8 - recoil, gy, justFired);
+
+  // The head: skin, spiky hair, headband, a face that aims.
+  ctx.fillStyle = '#ffd9b3';
   ctx.beginPath();
-  ctx.arc(2, 0, 4.2, 0, TAU);
+  ctx.arc(4, 0, 13.5, 0, TAU);
   ctx.fill();
+  glow(ctx, '#37c8ff', 8);
+  ctx.fillStyle = '#37c8ff';
+  for (const a of [-2.4, -1.8, -1.25, -0.7, -0.15]) {
+    const bx = 4 + Math.cos(a) * 9.5;
+    const by = Math.sin(a) * 9.5;
+    const tx = 4 + Math.cos(a) * 23.5;
+    const ty = Math.sin(a) * 23.5;
+    const px = Math.cos(a + Math.PI / 2) * 4.6;
+    const py = Math.sin(a + Math.PI / 2) * 4.6;
+    ctx.beginPath();
+    ctx.moveTo(bx + px, by + py);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx - px, by - py);
+    ctx.closePath();
+    ctx.fill();
+  }
   noGlow(ctx);
+  // Headband tails streaming behind, then the band itself.
+  ctx.fillStyle = '#ff4757';
+  const wave = Math.sin(elapsed * 6) * 2.4;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(-7, side * 4);
+    ctx.lineTo(-19, side * 8 + wave * side);
+    ctx.lineTo(-8, side * 9);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = '#ff4757';
+  ctx.lineWidth = 4.6;
+  ctx.beginPath();
+  ctx.arc(4, 0, 12.3, -0.95, 0.95);
+  ctx.stroke();
+  // Eyes on the aim; a blink every few seconds; a grin that means it.
+  const blinking = elapsed % 3.7 < 0.11;
+  ctx.fillStyle = '#20203a';
+  for (const side of [-1, 1]) {
+    if (blinking) {
+      ctx.fillRect(8.8, side * 5 - 0.8, 4, 1.6);
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(10.6, side * 5, 2.1, 3, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(11.3, side * 5 - 1, 0.9, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#20203a';
+    }
+  }
+  ctx.strokeStyle = '#a34d2e';
+  ctx.lineWidth = 1.7;
+  ctx.beginPath();
+  ctx.arc(11.8, 0, 3.6, -0.75, 0.75);
+  ctx.stroke();
   ctx.restore();
 
   if (player.shield > 0) {
@@ -189,19 +295,458 @@ export function drawPlayer(ctx, player, elapsed) {
     ctx.lineWidth = 2;
     glow(ctx, COLORS.shield, 12);
     ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius + 9, 0, TAU);
+    ctx.arc(player.x, player.y, player.radius + 10, 0, TAU);
     ctx.stroke();
     ctx.globalAlpha = 1;
     noGlow(ctx);
   }
 }
 
-const ENEMY_SIDES = { chaser: 4, dart: 3, splitter: 6, mini: 4, weaver: 5, bulwark: 6, stinger: 3, boss: 8 };
+// ---------------------------------------------------------------------
+// The Hollow, drawn as creatures. Each kind gets a painter in this
+// table: anatomy first (teeth, sacs, cloaks, plates, wings), then the
+// shared face language — eyes that aim, mouths that open before they
+// fire — and a body that flashes white for a frame when a bolt lands.
+// Painters draw in a frame already translated to the enemy, facing +x.
+// ---------------------------------------------------------------------
 
-// Every Hollow kind is drawn as a sigil with a face: a dark heart and a
-// single bright eye that stares along its heading, so the swarm reads
-// as creatures hunting you, not as confetti. Each kind adds one
-// signature detail on top of that shared anatomy.
+function teethRing(ctx, radius, count, length, color) {
+  ctx.fillStyle = color;
+  for (let i = 0; i < count; i += 1) {
+    const a = (i / count) * TAU;
+    const bx = Math.cos(a) * radius;
+    const by = Math.sin(a) * radius;
+    const px = Math.cos(a + Math.PI / 2) * (length * 0.32);
+    const py = Math.sin(a + Math.PI / 2) * (length * 0.32);
+    ctx.beginPath();
+    ctx.moveTo(bx + px, by + py);
+    ctx.lineTo(bx - Math.cos(a) * length, by - Math.sin(a) * length);
+    ctx.lineTo(bx - px, by - py);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+const PAINTERS = {
+  // The Maw: a ring of teeth that chews faster the longer it hunts.
+  chaser(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    const chomp = 0.5 + 0.5 * Math.sin(elapsed * 5.2 + enemy.wobblePhase);
+    ctx.rotate(enemy.angle);
+    ctx.fillStyle = flash ? '#ffffff' : '#2c1440';
+    glow(ctx, color, 14);
+    for (let i = 0; i < 10; i += 1) {
+      const a = (i / 10) * TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.16) * r * 0.92, Math.sin(a - 0.16) * r * 0.92);
+      ctx.lineTo(Math.cos(a) * r * 1.22, Math.sin(a) * r * 1.22);
+      ctx.lineTo(Math.cos(a + 0.16) * r * 0.92, Math.sin(a + 0.16) * r * 0.92);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    const inner = r * (0.62 + 0.16 * chomp);
+    ctx.fillStyle = '#4d0f26';
+    ctx.beginPath();
+    ctx.arc(0, 0, inner, 0, TAU);
+    ctx.fill();
+    teethRing(ctx, inner, 12, r * 0.3 * (0.7 + 0.5 * chomp), '#ffe9ec');
+    ctx.fillStyle = '#ff7d9c';
+    ctx.beginPath();
+    ctx.ellipse(-inner * 0.1, inner * 0.42, inner * 0.42, inner * 0.2, 0, 0, TAU);
+    ctx.fill();
+    // Two angry eyes riding the rim, locked on the kid.
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = '#ffd94d';
+      ctx.beginPath();
+      ctx.arc(r * 0.42, side * r * 0.78, r * 0.13, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = COLORS.eye;
+      ctx.beginPath();
+      ctx.arc(r * 0.5, side * r * 0.78, r * 0.06, 0, TAU);
+      ctx.fill();
+    }
+  },
+
+  // The Lance: a needle-nosed duelist. It leans back before it lunges,
+  // and its nose lights up — the tell is the whole fight.
+  dart(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    const winding = enemy.lungeTime < 0.32;
+    ctx.rotate(enemy.angle);
+    ctx.translate(winding ? -5 : 0, 0);
+    ctx.fillStyle = flash ? '#ffffff' : color;
+    glow(ctx, color, 12);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.9, 0);
+    ctx.lineTo(-r * 1.3, -r * 0.55);
+    ctx.lineTo(-r * 0.4, 0);
+    ctx.lineTo(-r * 1.3, r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.15, r * 0.6, 0, 0, TAU);
+    ctx.fill();
+    // The needle.
+    ctx.fillStyle = winding ? '#ffffff' : flash ? '#ffffff' : color;
+    glow(ctx, winding ? '#ffd94d' : color, winding ? 20 : 10);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.8, -r * 0.16);
+    ctx.lineTo(r * 2.05, 0);
+    ctx.lineTo(r * 0.8, r * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    noGlow(ctx);
+    ctx.fillStyle = COLORS.eye;
+    ctx.beginPath();
+    ctx.arc(r * 0.3, 0, r * 0.3, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(r * 0.38, 0, r * 0.14, 0, TAU);
+    ctx.fill();
+  },
+
+  // The Brood: a translucent sac with its children visible inside,
+  // drifting against the membrane. It pulses like a heartbeat.
+  splitter(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    const pulse = 1 + 0.05 * Math.sin(elapsed * 3.1 + enemy.wobblePhase);
+    ctx.scale(pulse, pulse);
+    glow(ctx, color, 13);
+    ctx.fillStyle = flash ? '#ffffff' : color;
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    noGlow(ctx);
+    ctx.fillStyle = 'rgba(240, 255, 230, 0.20)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.68, 0, TAU);
+    ctx.fill();
+    // The unborn, pressing at the walls.
+    for (let i = 0; i < 3; i += 1) {
+      const a = elapsed * 0.7 + (i / 3) * TAU + enemy.wobblePhase;
+      const bx = Math.cos(a) * r * 0.34;
+      const by = Math.sin(a) * r * 0.34;
+      ctx.fillStyle = COLORS.mini;
+      ctx.beginPath();
+      ctx.arc(bx, by, r * 0.17, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = COLORS.eye;
+      ctx.beginPath();
+      ctx.arc(bx - r * 0.05, by - r * 0.03, r * 0.045, 0, TAU);
+      ctx.arc(bx + r * 0.06, by - r * 0.03, r * 0.045, 0, TAU);
+      ctx.fill();
+    }
+    // Stitches down one side, where it will tear.
+    ctx.strokeStyle = 'rgba(7, 10, 28, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.9, 2.2, 4.1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // One watchful eye on the sac itself.
+    ctx.fillStyle = COLORS.eye;
+    ctx.beginPath();
+    ctx.arc(r * 0.2, -r * 0.55, r * 0.16, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(r * 0.24, -r * 0.55, r * 0.07, 0, TAU);
+    ctx.fill();
+  },
+
+  // The Mite: one huge eye, two frantic wings, all appetite.
+  mini(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    ctx.rotate(enemy.angle);
+    const flap = Math.sin(elapsed * 42 + enemy.wobblePhase) * 0.65;
+    ctx.fillStyle = 'rgba(230, 245, 255, 0.5)';
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(-r * 0.3, side * r * 0.6);
+      ctx.rotate(side * (0.7 + flap * side));
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.55, 0, r * 0.62, r * 0.26, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    glow(ctx, color, 10);
+    ctx.fillStyle = flash ? '#ffffff' : color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(r * 0.25, 0, r * 0.52, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = COLORS.eye;
+    ctx.beginPath();
+    ctx.arc(r * 0.42, 0, r * 0.27, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(r * 0.5, -r * 0.08, r * 0.09, 0, TAU);
+    ctx.fill();
+  },
+
+  // The Wraith: a tattered cloak with a face in the dark of the hood.
+  // Its mouth opens a breath before it spits — watch the mouth.
+  weaver(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    ctx.rotate(enemy.angle);
+    // Wisps for hands, drifting at its sides.
+    glow(ctx, color, 11);
+    ctx.fillStyle = color;
+    for (const side of [-1, 1]) {
+      const bob = Math.sin(elapsed * 2.6 + enemy.wobblePhase + (side > 0 ? Math.PI : 0)) * 3;
+      ctx.beginPath();
+      ctx.arc(-r * 0.1, side * (r + 8) + bob, 3.4, 0, TAU);
+      ctx.fill();
+    }
+    noGlow(ctx);
+    // The cloak: a hood and a torn, waving train.
+    const wave = Math.sin(elapsed * 4.2 + enemy.wobblePhase) * r * 0.16;
+    ctx.fillStyle = flash ? '#ffffff' : '#241248';
+    glow(ctx, color, 12);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.95, 0);
+    ctx.lineTo(r * 0.2, -r * 0.95);
+    ctx.lineTo(-r * 0.7, -r * 0.7);
+    ctx.lineTo(-r * 1.35, -r * 0.34 + wave);
+    ctx.lineTo(-r * 0.85, 0);
+    ctx.lineTo(-r * 1.35, r * 0.34 + wave);
+    ctx.lineTo(-r * 0.7, r * 0.7);
+    ctx.lineTo(r * 0.2, r * 0.95);
+    ctx.closePath();
+    ctx.fill();
+    noGlow(ctx);
+    // The face in the hood.
+    ctx.fillStyle = '#07040f';
+    ctx.beginPath();
+    ctx.ellipse(r * 0.34, 0, r * 0.44, r * 0.52, 0, 0, TAU);
+    ctx.fill();
+    glow(ctx, '#e9d8ff', 9);
+    ctx.fillStyle = '#e9d8ff';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(r * 0.44, side * r * 0.2, r * 0.07, r * 0.12, 0, 0, TAU);
+      ctx.fill();
+    }
+    noGlow(ctx);
+    const mouthOpen = enemy.shootTime < 0.35 ? r * 0.17 : r * 0.035;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(r * 0.4, 0, r * 0.09, mouthOpen, 0, 0, TAU);
+    ctx.fill();
+  },
+
+  // The Bulwark: a little knight of bone plates and a cyan visor.
+  // Hurt past a third, it turtles — the plates close ranks.
+  bulwark(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    const turtling = enemy.hp < enemy.maxHp * 0.35;
+    const orbit = r * (turtling ? 0.72 : 0.98);
+    ctx.rotate(enemy.angle);
+    // The helm and its glowing core.
+    glow(ctx, color, 10);
+    ctx.fillStyle = flash ? '#ffffff' : '#3a4166';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.62, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    ctx.fillStyle = COLORS.stinger;
+    glow(ctx, COLORS.stinger, 12);
+    rr(ctx, r * 0.1, -r * 0.13, r * 0.42, r * 0.26, r * 0.1);
+    ctx.fill();
+    noGlow(ctx);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.1, -r * 0.62);
+    ctx.lineTo(r * 0.34, -r * 0.86);
+    ctx.lineTo(r * 0.52, -r * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // The plates, counter-rotating shields of bone.
+    for (let i = 0; i < 4; i += 1) {
+      const a = elapsed * (turtling ? 0.35 : 0.8) + (i / 4) * TAU;
+      const px = Math.cos(a) * orbit;
+      const py = Math.sin(a) * orbit;
+      glow(ctx, color, 9);
+      ctx.fillStyle = flash ? '#ffffff' : color;
+      ctx.beginPath();
+      ctx.arc(px, py, r * 0.4, 0, TAU);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.fillStyle = 'rgba(7, 10, 28, 0.55)';
+      ctx.beginPath();
+      ctx.arc(px, py, r * 0.2, 0, TAU);
+      ctx.fill();
+    }
+  },
+
+  // The Stinger: a wasp the size of a dog. Its tail charges light
+  // before it fires — the brighter the sting, the closer the shot.
+  stinger(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    ctx.rotate(enemy.angle);
+    // Wings, a blur above and below.
+    const flap = Math.sin(elapsed * 46 + enemy.wobblePhase) * 0.4;
+    ctx.fillStyle = 'rgba(200, 240, 255, 0.42)';
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(-r * 0.1, side * r * 0.55);
+      ctx.rotate(side * (0.9 + flap));
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.5, 0, r * 0.85, r * 0.3, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    // The striped abdomen.
+    ctx.fillStyle = flash ? '#ffffff' : '#e8b93b';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.95, 0, r * 0.95, r * 0.7, 0, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.95, 0, r * 0.95, r * 0.7, 0, 0, TAU);
+    ctx.clip();
+    ctx.fillStyle = '#23233a';
+    for (const off of [-1.35, -0.75, -0.15]) ctx.fillRect(off * r - r * 0.14, -r, r * 0.28, r * 2);
+    ctx.restore();
+    // Thorax and head.
+    glow(ctx, color, 11);
+    ctx.fillStyle = flash ? '#ffffff' : color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.58, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    // Antennae.
+    ctx.strokeStyle = flash ? '#ffffff' : color;
+    ctx.lineWidth = 2;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.6, side * r * 0.2);
+      ctx.quadraticCurveTo(r * 1.05, side * r * 0.55, r * 1.25, side * r * 0.3);
+      ctx.stroke();
+    }
+    // Two compound eyes, green and multifaceted.
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = '#7dff9a';
+      glow(ctx, '#7dff9a', 8);
+      ctx.beginPath();
+      ctx.arc(r * 0.62, side * r * 0.34, r * 0.3, 0, TAU);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.beginPath();
+      ctx.arc(r * 0.7, side * r * 0.26, r * 0.09, 0, TAU);
+      ctx.fill();
+    }
+    // The sting, charging.
+    const charge = Math.max(0, Math.min(1, 1 - enemy.shootTime / 2.6));
+    ctx.fillStyle = flash ? '#ffffff' : '#39406e';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.7, -r * 0.14);
+    ctx.lineTo(-r * 2.15, 0);
+    ctx.lineTo(-r * 1.7, r * 0.14);
+    ctx.closePath();
+    ctx.fill();
+    if (charge > 0.25) {
+      glow(ctx, '#c9a7ff', 16 * charge);
+      ctx.fillStyle = '#c9a7ff';
+      ctx.beginPath();
+      ctx.arc(-r * 2.15, 0, 2 + 4 * charge, 0, TAU);
+      ctx.fill();
+      noGlow(ctx);
+    }
+  },
+
+  // The Dreadnought: a leviathan head in two siege rings — teeth,
+  // tentacles, and a crown of eyes that open as it angers.
+  boss(ctx, enemy, elapsed, color, flash) {
+    const r = enemy.radius;
+    // Siege rings, counter-rotating.
+    for (const [ringR, dir, segs] of [[r + 12, 1, 8], [r + 26, -1, 10]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 4;
+      glow(ctx, color, 12);
+      for (let i = 0; i < segs; i += 1) {
+        const a0 = elapsed * 0.55 * dir + (i / segs) * TAU + 0.1;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR, a0, a0 + (TAU / segs) * 0.55);
+        ctx.stroke();
+      }
+      noGlow(ctx);
+    }
+    ctx.rotate(enemy.angle + Math.sin(elapsed * 0.6) * 0.08);
+    // Tentacle curls at the cheeks.
+    ctx.strokeStyle = flash ? '#ffffff' : '#4a2070';
+    ctx.lineWidth = r * 0.14;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(-r * 0.45, side * r * 0.95, r * 0.34, side > 0 ? 3.4 : -0.3, side > 0 ? 5.6 : 1.9);
+      ctx.stroke();
+    }
+    // The head.
+    glow(ctx, color, 18);
+    ctx.fillStyle = flash ? '#ffffff' : '#33154f';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    // The jaw: a darker crescent of teeth along the front-bottom.
+    ctx.fillStyle = '#1d0b31';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, -0.5, Math.PI + 0.5);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fill();
+    teethRing(ctx, r * 0.78, 14, r * 0.16, '#ffe9ec');
+    // The mouth-core: its heart, glowing through the teeth.
+    const corePulse = 1 + Math.sin(elapsed * (enemy.enraged ? 7 : 3.5)) * 0.18;
+    glow(ctx, color, 22);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(r * 0.18, 0, r * 0.17 * corePulse, 0, TAU);
+    ctx.fill();
+    noGlow(ctx);
+    // The crown of eyes. Calm, five watch; enraged, all eight burn.
+    const eyeSpots = [[0.55, -0.5], [0.3, -0.78], [-0.05, -0.88], [-0.42, -0.72], [0.55, 0.5], [0.3, 0.78], [-0.05, 0.88], [-0.42, 0.72]];
+    eyeSpots.forEach(([ex, ey], i) => {
+      const open = enemy.enraged || i % 2 === 0 || i === 2;
+      const px = ex * r;
+      const py = ey * r;
+      if (!open) {
+        ctx.strokeStyle = '#8b6fb8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px - 4, py);
+        ctx.lineTo(px + 4, py);
+        ctx.stroke();
+        return;
+      }
+      glow(ctx, '#ffd94d', 10);
+      ctx.fillStyle = '#ffd94d';
+      ctx.beginPath();
+      ctx.arc(px, py, r * 0.075, 0, TAU);
+      ctx.fill();
+      noGlow(ctx);
+      ctx.fillStyle = COLORS.eye;
+      ctx.beginPath();
+      ctx.arc(px + r * 0.03, py, r * 0.035, 0, TAU);
+      ctx.fill();
+    });
+  },
+};
+
 export function drawEnemy(ctx, enemy, elapsed) {
   const color = COLORS[enemy.kind];
   const r = enemy.radius;
@@ -219,100 +764,23 @@ export function drawEnemy(ctx, enemy, elapsed) {
     ctx.restore();
     ctx.globalAlpha = 1;
   }
+  // A motion streak behind anything quick, so speed is visible.
+  if (enemy.kind === 'dart' || enemy.kind === 'stinger' || enemy.kind === 'mini') {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(enemy.x - Math.cos(enemy.angle) * r * 0.6, enemy.y - Math.sin(enemy.angle) * r * 0.6);
+    ctx.lineTo(enemy.x - Math.cos(enemy.angle) * r * 2.1, enemy.y - Math.sin(enemy.angle) * r * 2.1);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
   ctx.save();
   if ((enemy.spawnIn ?? 0) > 0) ctx.globalAlpha = 1 - (enemy.spawnIn / 0.35) * 0.55;
   ctx.translate(enemy.x, enemy.y);
-
-  // A motion streak behind anything quick, so speed is visible.
-  if (enemy.kind === 'dart' || enemy.kind === 'stinger' || enemy.kind === 'mini') {
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.3;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-Math.cos(enemy.angle) * r * 0.6, -Math.sin(enemy.angle) * r * 0.6);
-    ctx.lineTo(-Math.cos(enemy.angle) * r * 2.1, -Math.sin(enemy.angle) * r * 2.1);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  // Signature detail behind the hull: the Brood's segmented shell ring,
-  // the Wraith's two orbiting wisps, the Dreadnought's siege ring.
-  if (enemy.kind === 'splitter' || enemy.kind === 'boss') {
-    const segments = enemy.kind === 'boss' ? 8 : 6;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = enemy.kind === 'boss' ? 4 : 3;
-    glow(ctx, color, 12);
-    for (let i = 0; i < segments; i += 1) {
-      const a0 = elapsed * 0.7 + (i / segments) * TAU + 0.12;
-      ctx.beginPath();
-      ctx.arc(0, 0, r + 6, a0, a0 + (TAU / segments) * 0.55);
-      ctx.stroke();
-    }
-    noGlow(ctx);
-  }
-  if (enemy.kind === 'weaver') {
-    glow(ctx, color, 10);
-    ctx.fillStyle = color;
-    for (let i = 0; i < 2; i += 1) {
-      const a = elapsed * 2.6 + i * Math.PI + enemy.wobblePhase;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8), 3, 0, TAU);
-      ctx.fill();
-    }
-    noGlow(ctx);
-  }
-  // The Bulwark's armor: four plates that counter-rotate against the hull.
-  if (enemy.kind === 'bulwark') {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    glow(ctx, color, 8);
-    for (let i = 0; i < 4; i += 1) {
-      const a = -elapsed * 0.8 + (i / 4) * TAU;
-      ctx.beginPath();
-      ctx.arc(0, 0, r + 5, a, a + 0.9);
-      ctx.stroke();
-    }
-    noGlow(ctx);
-  }
-  // The Stinger's barb: a tail spike trailing its heading.
-  if (enemy.kind === 'stinger') {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    glow(ctx, color, 10);
-    ctx.beginPath();
-    ctx.moveTo(-Math.cos(enemy.angle) * r * 0.5, -Math.sin(enemy.angle) * r * 0.5);
-    ctx.lineTo(-Math.cos(enemy.angle) * (r + 10), -Math.sin(enemy.angle) * (r + 10));
-    ctx.stroke();
-    noGlow(ctx);
-  }
-
-  const spin = enemy.kind === 'splitter' || enemy.kind === 'boss' ? elapsed * 0.9 : enemy.angle;
-  ctx.save();
-  ctx.rotate(spin + Math.PI / 4);
-  glow(ctx, color, 16);
-  ctx.fillStyle = enemy.flashTime > 0 ? '#ffffff' : color;
-  polygon(ctx, 0, 0, r, ENEMY_SIDES[enemy.kind], 0);
-  ctx.fill();
-  noGlow(ctx);
-  ctx.fillStyle = 'rgba(7, 10, 28, 0.85)';
-  polygon(ctx, 0, 0, r * 0.52, ENEMY_SIDES[enemy.kind], 0.4);
-  ctx.fill();
-  ctx.restore();
-
-  // The eye: a bright pupil riding toward the heading, in a dark socket.
-  const look = enemy.kind === 'splitter' || enemy.kind === 'boss' ? elapsed * 0.9 : enemy.angle;
-  const ex = Math.cos(look) * r * 0.22;
-  const ey = Math.sin(look) * r * 0.22;
-  ctx.fillStyle = COLORS.eye;
-  ctx.beginPath();
-  ctx.arc(ex, ey, r * 0.3, 0, TAU);
-  ctx.fill();
-  glow(ctx, '#ffffff', 8);
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(ex + Math.cos(look) * r * 0.1, ey + Math.sin(look) * r * 0.1, Math.max(1.6, r * 0.13), 0, TAU);
-  ctx.fill();
-  noGlow(ctx);
+  PAINTERS[enemy.kind](ctx, enemy, elapsed, color, enemy.flashTime > 0);
   ctx.restore();
 
   // An elite wears a broken gold ring; a Hollow that has been eating
@@ -322,7 +790,7 @@ export function drawEnemy(ctx, enemy, elapsed) {
     ctx.lineWidth = 2.5;
     glow(ctx, COLORS.elite, 12);
     ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, r + 11, elapsed * 1.3, elapsed * 1.3 + TAU * 0.72);
+    ctx.arc(enemy.x, enemy.y, r + 12, elapsed * 1.3, elapsed * 1.3 + TAU * 0.72);
     ctx.stroke();
     noGlow(ctx);
   }
@@ -331,7 +799,7 @@ export function drawEnemy(ctx, enemy, elapsed) {
     for (let i = 0; i < Math.min(6, enemy.growth); i += 1) {
       const a = (i / Math.min(6, enemy.growth)) * TAU + elapsed * 0.8;
       ctx.beginPath();
-      ctx.arc(enemy.x + Math.cos(a) * (r + 4), enemy.y + Math.sin(a) * (r + 4), 2.4, 0, TAU);
+      ctx.arc(enemy.x + Math.cos(a) * (r + 5), enemy.y + Math.sin(a) * (r + 5), 2.4, 0, TAU);
       ctx.fill();
     }
   }
@@ -340,9 +808,9 @@ export function drawEnemy(ctx, enemy, elapsed) {
     const w = enemy.radius * 2;
     const h = enemy.kind === 'boss' ? 6 : 3;
     ctx.fillStyle = 'rgba(230, 235, 255, 0.25)';
-    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 12, w, h);
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 14, w, h);
     ctx.fillStyle = color;
-    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 12, w * (enemy.hp / enemy.maxHp), h);
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 14, w * (enemy.hp / enemy.maxHp), h);
   }
 }
 
@@ -398,8 +866,8 @@ export function drawParticle(ctx, particle) {
 // letter worn on its face and its name written under it, bobbing and
 // blinking as its thirteen seconds run out. It should read at a glance
 // across a screenshot: this kill left power behind.
-// A dash ghost: the ship's hull outline left hanging where the dash
-// carried it, fading in a third of a second. Speed you can see.
+// A dash ghost: the kid's outline left hanging where the dash carried
+// him, fading in a third of a second. Speed you can see.
 export function drawGhost(ctx, ghost) {
   ctx.save();
   ctx.translate(ghost.x, ghost.y);
@@ -407,16 +875,17 @@ export function drawGhost(ctx, ghost) {
   ctx.globalAlpha = Math.max(0, ghost.life / ghost.maxLife) * 0.4;
   ctx.strokeStyle = COLORS.ship;
   ctx.lineWidth = 1.6;
-  const r = 13;
   ctx.beginPath();
-  ctx.moveTo(r + 7, 0);
-  ctx.lineTo(-r + 3, 5);
-  ctx.lineTo(-r - 6, r + 4);
-  ctx.lineTo(-r - 2, 3);
-  ctx.lineTo(-r - 2, -3);
-  ctx.lineTo(-r - 6, -r - 4);
-  ctx.lineTo(-r + 3, -5);
-  ctx.closePath();
+  ctx.arc(3, 0, 10, 0, TAU);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(-5, 0, 10, 8.5, 0, 0, TAU);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(10, 4);
+  ctx.lineTo(24, 4);
+  ctx.moveTo(10, -4);
+  ctx.lineTo(24, -4);
   ctx.stroke();
   ctx.restore();
   ctx.globalAlpha = 1;

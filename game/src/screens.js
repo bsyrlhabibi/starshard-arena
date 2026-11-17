@@ -59,7 +59,7 @@ export function drawTitle(ctx, state) {
   text(ctx, 'Kills drop skill Cores — fly over them to steal Hollow powers mid-fight.', cx, 302, 17, COLORS.text);
   text(ctx, 'Chain a ×8 combo to charge STARFALL. Spend shards at the Forge. Survive.', cx, 326, 17, COLORS.text);
 
-  const start = drawButton(ctx, buttonRect('start', cx - 130, 352, 260, 56), '▶  LAUNCH', state.mouse, COLORS.ship);
+  const start = drawButton(ctx, buttonRect('start', cx - 130, 352, 260, 56), '▶  PLAY', state.mouse, COLORS.ship);
 
   // The difficulty sigils: one choice, made before the dark arrives.
   // Nightmare pays double score for a faster, tougher swarm.
@@ -83,7 +83,7 @@ export function drawTitle(ctx, state) {
     rects.push(rect);
   });
 
-  text(ctx, 'WASD / ARROWS — fly        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 470, 14, COLORS.dim);
+  text(ctx, 'WASD / ARROWS — move        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 470, 14, COLORS.dim);
   text(ctx, 'SHIFT — dash (its wake burns)        E — Starfall        P — pause        M — sound', cx, 494, 14, COLORS.dim);
   if (state.best > 0) text(ctx, `BEST SCORE  ${state.best.toLocaleString('en-US')}`, cx, 522, 15, COLORS.shard, 'center', 800);
   return rects;
@@ -169,8 +169,8 @@ export function drawGameOver(ctx, state) {
     text(ctx, `best score ${state.best.toLocaleString('en-US')}`, cx, 326, 16, COLORS.dim);
   }
 
-  const again = drawButton(ctx, buttonRect('restart', cx - 140, 366, 280, 56), '↻  FLY AGAIN (R)', state.mouse, COLORS.ship);
-  text(ctx, 'every run forges a different ship — the swarm remembers nothing', cx, 462, 14, COLORS.dim);
+  const again = drawButton(ctx, buttonRect('restart', cx - 140, 366, 280, 56), '↻  PLAY AGAIN (R)', state.mouse, COLORS.ship);
+  text(ctx, 'every run builds a different blaster — the swarm remembers nothing', cx, 462, 14, COLORS.dim);
   return [again];
 }
 

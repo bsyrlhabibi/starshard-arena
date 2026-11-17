@@ -16,7 +16,7 @@ export function createPlayer() {
     y: ARENA.height / 2,
     vx: 0,
     vy: 0,
-    radius: 13,
+    radius: 21,
     angle: -Math.PI / 2,
     hp: 3,
     maxHp: 3,
@@ -66,14 +66,14 @@ export function createBullet(x, y, angle, damage, pierce = 0) {
 // decides how many of each a wave sends; the Dreadnought is a boss that
 // arrives alone every fifth wave.
 export const ENEMY_KINDS = {
-  chaser: { name: 'Stalker', hp: 3, speed: 108, radius: 15, score: 100, shards: 1, turn: 3.4 },
-  dart: { name: 'Lance', hp: 2, speed: 168, radius: 11, score: 150, shards: 1, turn: 2.2 },
-  splitter: { name: 'Brood', hp: 6, speed: 74, radius: 21, score: 200, shards: 2, turn: 2.6 },
-  mini: { name: 'Mite', hp: 1, speed: 196, radius: 8, score: 50, shards: 0, turn: 4.6 },
-  weaver: { name: 'Wraith', hp: 4, speed: 96, radius: 14, score: 250, shards: 2, turn: 3.0 },
-  bulwark: { name: 'Bulwark', hp: 16, speed: 52, radius: 26, score: 400, shards: 4, turn: 1.6 },
-  stinger: { name: 'Stinger', hp: 3, speed: 132, radius: 12, score: 300, shards: 2, turn: 3.8 },
-  boss: { name: 'Dreadnought', hp: 70, speed: 44, radius: 46, score: 2500, shards: 14, turn: 1.1 },
+  chaser: { name: 'Stalker', hp: 3, speed: 104, radius: 23, score: 100, shards: 1, turn: 3.4 },
+  dart: { name: 'Lance', hp: 2, speed: 162, radius: 18, score: 150, shards: 1, turn: 2.2 },
+  splitter: { name: 'Brood', hp: 6, speed: 70, radius: 31, score: 200, shards: 2, turn: 2.6 },
+  mini: { name: 'Mite', hp: 1, speed: 190, radius: 12, score: 50, shards: 0, turn: 4.6 },
+  weaver: { name: 'Wraith', hp: 4, speed: 92, radius: 22, score: 250, shards: 2, turn: 3.0 },
+  bulwark: { name: 'Bulwark', hp: 16, speed: 50, radius: 37, score: 400, shards: 4, turn: 1.6 },
+  stinger: { name: 'Stinger', hp: 3, speed: 128, radius: 19, score: 300, shards: 2, turn: 3.8 },
+  boss: { name: 'Dreadnought', hp: 70, speed: 42, radius: 66, score: 2500, shards: 14, turn: 1.1 },
 };
 
 export function createEnemy(kind, x, y, rng, hpScale, elite = false) {
