@@ -123,7 +123,8 @@ export function createShard(x, y, rng) {
     vy: rng.range(-70, 70),
     radius: 6,
     spin: rng.range(0, TAU),
-    life: 11,
+    life: 20,
+    homing: false,
   };
 }
 
@@ -273,7 +274,16 @@ export function updateShard(shard, player, dt) {
   const dx = player.x - shard.x;
   const dy = player.y - shard.y;
   const dist = Math.hypot(dx, dy);
-  if (dist < player.stats.magnetRadius && dist > 1) {
+  if (shard.homing) {
+    // The wave-clear sweep: a shard that is homing never fades and
+    // accelerates at the ship from any distance, so a cleared arena
+    // visibly pays out before the Forge opens.
+    shard.life = Math.max(shard.life, 1);
+    if (dist > 1) {
+      shard.vx += (dx / dist) * 1500 * dt;
+      shard.vy += (dy / dist) * 1500 * dt;
+    }
+  } else if (dist < player.stats.magnetRadius && dist > 1) {
     const pull = 340 * (1 - dist / player.stats.magnetRadius) + 60;
     shard.vx += (dx / dist) * pull * dt * 3;
     shard.vy += (dy / dist) * pull * dt * 3;

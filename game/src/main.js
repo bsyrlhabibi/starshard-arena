@@ -281,11 +281,17 @@ function updatePlay(dt) {
     if (state.comboTimer <= 0) state.combo = 0;
   }
 
-  // Wave cleared: the Forge opens.
+  // Wave cleared: first the payout sweep — every shard still lying in
+  // the arena homes to the ship — and only then does the Forge open,
+  // so what a wave earned is never left lying out of reach.
   if (state.screen === 'play' && state.spawnQueue.length === 0 && state.enemies.length === 0) {
-    state.choices = drawChoices(player, state.rng, state.taken);
-    state.screen = 'upgrade';
-    audio.upgrade();
+    if (state.shards.length > 0) {
+      for (const shard of state.shards) shard.homing = true;
+    } else {
+      state.choices = drawChoices(player, state.rng, state.taken);
+      state.screen = 'upgrade';
+      audio.upgrade();
+    }
   }
 }
 
