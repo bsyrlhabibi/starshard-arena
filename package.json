@@ -1,0 +1,1 @@
+{"description":"Starshard Arena: a neon wave-survival browser game — break the Hollow swarm, catch their shards, forge a stronger ship between waves","engines":{"node":">=22.18"},"license":"MIT","name":"starshard-arena","private":true,"scripts":{"package":"node main.ts","play":"node serve.ts"},"type":"module","version":"1.0.0"}

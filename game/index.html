@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starshard Arena — a neon swarm survival game</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #04050f;
+    height: 100%;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  canvas {
+    width: min(96vw, 960px);
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: #070a1c;
+    border: 1px solid rgba(63, 242, 224, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 0 42px rgba(63, 242, 224, 0.16), 0 0 120px rgba(80, 60, 220, 0.12);
+    cursor: crosshair;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game" width="960" height="540"></canvas>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
