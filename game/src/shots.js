@@ -6,14 +6,15 @@
 // screenshots and any later review see exactly the same frame. It is
 // also how a person can peek at every screen without playing to it.
 
-import { burst, createEnemy, createOrb, createPlayer, createShard } from './entities.js';
+import { burst, createEnemy, createMissile, createOrb, createPickup, createPlayer, createRift, createShard } from './entities.js';
 import { COLORS } from './render.js';
 import { UPGRADES } from './upgrades.js';
 
-function place(state, kind, x, y) {
-  const enemy = createEnemy(kind, x, y, state.rng, 1);
+function place(state, kind, x, y, elite = false) {
+  const enemy = createEnemy(kind, x, y, state.rng, 1, elite);
   enemy.angle = Math.atan2(state.player.y - y, state.player.x - x);
   state.enemies.push(enemy);
+  return enemy;
 }
 
 export function stageShot(state, name) {
@@ -22,12 +23,14 @@ export function stageShot(state, name) {
 
   if (name === 'start') {
     state.screen = 'title';
-    // A quiet patrol drifting behind the title veil — and the
-    // Dreadnought's silhouette looming in the far corner.
+    // A quiet patrol drifting behind the title veil — the full cast,
+    // with the Dreadnought's silhouette looming in the far corner.
     place(state, 'chaser', 150, 120);
     place(state, 'weaver', 806, 140);
     place(state, 'splitter', 812, 408);
     place(state, 'dart', 138, 414);
+    place(state, 'bulwark', 96, 268);
+    place(state, 'stinger', 872, 268);
     place(state, 'boss', 866, 84);
     for (let i = 0; i < 7; i += 1) state.shards.push(createShard(120 + i * 118, 470 + Math.sin(i * 1.7) * 16, rng));
     return;
@@ -35,7 +38,9 @@ export function stageShot(state, name) {
 
   if (name === 'play') {
     // The money shot: a wave-5 Dreadnought fight, mid-charge, with the
-    // ship kiting left, bolts streaming right, plasma coming back.
+    // ship kiting left, bolts streaming right, plasma coming back — and
+    // the new war on show: an elite Bulwark, a rift tearing the corner,
+    // a stolen-seekers chip on the HUD and a Core waiting to be taken.
     state.screen = 'play';
     state.wave = 5;
     state.score = 13900;
@@ -44,6 +49,8 @@ export function stageShot(state, name) {
     state.combo = 5;
     state.comboTimer = 1.35;
     state.bestCombo = 7;
+    state.effects.seekers = 8.4;
+    state.starfallReady = true;
     state.player.x = 330;
     state.player.y = 330;
     state.player.hp = 2;
@@ -58,6 +65,20 @@ export function stageShot(state, name) {
     place(state, 'weaver', 110, 460);
     place(state, 'mini', 610, 320);
     place(state, 'mini', 540, 130);
+    const elite = place(state, 'bulwark', 470, 468, true);
+    elite.hp = 31;
+    place(state, 'stinger', 235, 225);
+    // A gravity rift gnaws the lower-right corner.
+    state.rifts.push(createRift(815, 445));
+    // Two wrecks left power behind: a Nova Core and an Overdrive.
+    state.pickups.push(createPickup('nova', 445, 235, rng));
+    state.pickups.push(createPickup('overdrive', 190, 350, rng));
+    // A seeker already away, bending toward the Dreadnought.
+    const missile = createMissile(300, 385, -0.9);
+    missile.vx = 300;
+    missile.vy = -190;
+    state.missiles.push(missile);
+    state.floaters.push({ x: 470, y: 420, text: 'ELITE', color: COLORS.elite, size: 13, life: 1, maxLife: 1 });
     // Bolts already in flight from the ship's nose toward the boss.
     for (let i = 0; i < 3; i += 1) {
       state.bullets.push({
@@ -88,10 +109,10 @@ export function stageShot(state, name) {
     state.screen = 'upgrade';
     state.wave = 3;
     state.score = 8620;
-    state.shardBank = 41;
+    state.shardBank = 47;
     state.shardsCollected = 70;
     state.player.hp = 2;
-    state.choices = ['cannons', 'rapid', 'aegis'].map((id) => UPGRADES.find((u) => u.id === id));
+    state.choices = ['missiles', 'cannons', 'aegis'].map((id) => UPGRADES.find((u) => u.id === id));
     return;
   }
 
@@ -101,6 +122,7 @@ export function stageShot(state, name) {
   state.score = 21840;
   state.best = 21840;
   state.shardsCollected = 96;
+  state.coresCollected = 9;
   state.bestCombo = 12;
   state.player.hp = 0;
   place(state, 'chaser', 210, 160);

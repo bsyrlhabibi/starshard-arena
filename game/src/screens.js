@@ -54,16 +54,39 @@ export function drawTitle(ctx, state) {
   text(ctx, 'A R E N A', cx, 208, 30, COLORS.shard, 'center', 800);
   ctx.shadowBlur = 0;
 
-  text(ctx, 'The Hollow are coming through the dark in waves:', cx, 262, 18, COLORS.text);
-  text(ctx, 'Stalkers, Lances, Broods and Wraiths — and every fifth wave, the Dreadnought.', cx, 288, 18, COLORS.text);
-  text(ctx, 'Break them. Spend their shards at the Forge. Become the ship that survives.', cx, 314, 18, COLORS.text);
+  text(ctx, 'The Hollow come in waves: Stalkers, Lances, Broods, Wraiths,', cx, 254, 17, COLORS.text);
+  text(ctx, 'Bulwarks and Stingers — and every fifth wave, the Dreadnought.', cx, 278, 17, COLORS.text);
+  text(ctx, 'Kills drop skill Cores — fly over them to steal Hollow powers mid-fight.', cx, 302, 17, COLORS.text);
+  text(ctx, 'Chain a ×8 combo to charge STARFALL. Spend shards at the Forge. Survive.', cx, 326, 17, COLORS.text);
 
-  const start = drawButton(ctx, buttonRect('start', cx - 130, 344, 260, 56), '▶  LAUNCH', state.mouse, COLORS.ship);
+  const start = drawButton(ctx, buttonRect('start', cx - 130, 352, 260, 56), '▶  LAUNCH', state.mouse, COLORS.ship);
 
-  text(ctx, 'WASD / ARROWS — fly        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 438, 15, COLORS.dim);
-  text(ctx, 'SHIFT — dash (briefly untouchable)        P — pause        M — sound on/off', cx, 464, 15, COLORS.dim);
-  if (state.best > 0) text(ctx, `BEST SCORE  ${state.best.toLocaleString('en-US')}`, cx, 502, 16, COLORS.shard, 'center', 800);
-  return [start];
+  // The difficulty sigils: one choice, made before the dark arrives.
+  // Nightmare pays double score for a faster, tougher swarm.
+  const diffs = [
+    { id: 'diff-cadet', label: 'CADET', key: 'cadet' },
+    { id: 'diff-standard', label: 'STANDARD', key: 'standard' },
+    { id: 'diff-nightmare', label: 'NIGHTMARE ×2', key: 'nightmare' },
+  ];
+  const rects = [start];
+  diffs.forEach((d, i) => {
+    const rect = buttonRect(d.id, cx - 198 + i * 136, 420, 124, 30);
+    const selected = (state.difficulty?.id ?? 'standard') === d.key;
+    ctx.fillStyle = selected ? COLORS.shard : 'rgba(20, 28, 64, 0.92)';
+    ctx.strokeStyle = COLORS.shard;
+    ctx.lineWidth = selected ? 2 : 1;
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 8);
+    ctx.fill();
+    ctx.stroke();
+    text(ctx, d.label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1, 12, selected ? '#070a1c' : COLORS.dim, 'center', 800);
+    rects.push(rect);
+  });
+
+  text(ctx, 'WASD / ARROWS — fly        MOUSE — aim        HOLD CLICK / SPACE — fire', cx, 470, 14, COLORS.dim);
+  text(ctx, 'SHIFT — dash (its wake burns)        E — Starfall        P — pause        M — sound', cx, 494, 14, COLORS.dim);
+  if (state.best > 0) text(ctx, `BEST SCORE  ${state.best.toLocaleString('en-US')}`, cx, 522, 15, COLORS.shard, 'center', 800);
+  return rects;
 }
 
 export function drawUpgrade(ctx, state) {
@@ -139,7 +162,7 @@ export function drawGameOver(ctx, state) {
 
   text(ctx, 'FINAL SCORE', cx, 208, 15, COLORS.dim, 'center', 700);
   text(ctx, state.score.toLocaleString('en-US'), cx, 244, 52, COLORS.text, 'center', 900);
-  text(ctx, `reached wave ${state.wave}   ·   shards ◆ ${state.shardsCollected}   ·   best combo ×${state.bestCombo}`, cx, 292, 17, COLORS.text);
+  text(ctx, `reached wave ${state.wave}   ·   shards ◆ ${state.shardsCollected}   ·   cores stolen ${state.coresCollected ?? 0}   ·   best combo ×${state.bestCombo}`, cx, 292, 17, COLORS.text);
   if (state.score >= state.best && state.score > 0) {
     text(ctx, '★ NEW BEST SCORE ★', cx, 326, 18, COLORS.shard, 'center', 800);
   } else {

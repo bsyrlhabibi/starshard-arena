@@ -88,6 +88,28 @@ export const UPGRADES = [
       player.hp = Math.min(player.maxHp, player.hp + 1);
     },
   },
+  {
+    id: 'piercing',
+    cost: 30,
+    name: 'Piercing Bolts',
+    blurb: 'Bolts pass through +1 Hollow before they fade.',
+    max: 2,
+    applies: () => true,
+    apply: (player) => {
+      player.stats.pierce += 1;
+    },
+  },
+  {
+    id: 'missiles',
+    cost: 42,
+    name: 'Seeker Rack',
+    blurb: 'A homing missile every second. It aims so you can fly.',
+    max: 3,
+    applies: () => true,
+    apply: (player) => {
+      player.stats.missileCount += 1;
+    },
+  },
 ];
 
 /** Draw three distinct upgrades the player can still use. */

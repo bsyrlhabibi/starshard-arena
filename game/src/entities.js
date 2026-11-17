@@ -25,6 +25,7 @@ export function createPlayer() {
     dashCooldown: 0,
     dashTime: 0,
     invulnerableTime: 0,
+    missileTimer: 0,
     // Upgradeable stats; upgrades.js mutates these between waves.
     stats: {
       speed: 265,
@@ -33,11 +34,13 @@ export function createPlayer() {
       cannons: 1,
       magnetRadius: 74,
       dashRecharge: 1.6,
+      pierce: 0,
+      missileCount: 0,
     },
   };
 }
 
-export function createBullet(x, y, angle, damage) {
+export function createBullet(x, y, angle, damage, pierce = 0) {
   const speed = 640;
   return {
     kind: 'bullet',
@@ -48,6 +51,11 @@ export function createBullet(x, y, angle, damage) {
     radius: 4,
     angle,
     damage,
+    // How many extra Hollow the bolt flies through before it fades,
+    // and the set of hulls it has already punched (so a piercing bolt
+    // wounds each enemy once, not once per frame).
+    pierce,
+    hit: null,
     life: 0.9,
   };
 }
@@ -63,31 +71,41 @@ export const ENEMY_KINDS = {
   splitter: { name: 'Brood', hp: 6, speed: 74, radius: 21, score: 200, shards: 2, turn: 2.6 },
   mini: { name: 'Mite', hp: 1, speed: 196, radius: 8, score: 50, shards: 0, turn: 4.6 },
   weaver: { name: 'Wraith', hp: 4, speed: 96, radius: 14, score: 250, shards: 2, turn: 3.0 },
+  bulwark: { name: 'Bulwark', hp: 16, speed: 52, radius: 26, score: 400, shards: 4, turn: 1.6 },
+  stinger: { name: 'Stinger', hp: 3, speed: 132, radius: 12, score: 300, shards: 2, turn: 3.8 },
   boss: { name: 'Dreadnought', hp: 70, speed: 44, radius: 46, score: 2500, shards: 14, turn: 1.1 },
 };
 
-export function createEnemy(kind, x, y, rng, hpScale) {
+export function createEnemy(kind, x, y, rng, hpScale, elite = false) {
   const base = ENEMY_KINDS[kind];
+  const hp = Math.max(1, Math.round(base.hp * hpScale * (elite ? 3 : 1)));
   return {
     kind,
     x,
     y,
     vx: 0,
     vy: 0,
-    radius: base.radius,
-    hp: Math.max(1, Math.round(base.hp * hpScale)),
-    maxHp: Math.max(1, Math.round(base.hp * hpScale)),
+    radius: base.radius * (elite ? 1.3 : 1),
+    hp,
+    maxHp: hp,
     angle: rng.range(0, TAU),
     wobblePhase: rng.range(0, TAU),
     lungeTime: rng.range(0.4, 1.4),
-    // Wraiths and the Dreadnought shoot plasma orbs on this clock; the
-    // Dreadnought also sheds Mites on broodTime and charges on chargeTime.
+    // Wraiths, Stingers and the Dreadnought shoot plasma orbs on this
+    // clock; the Dreadnought also sheds Mites on broodTime and charges
+    // on chargeTime, and past half hull it enrages.
     shootTime: rng.range(1.2, 2.4),
     broodTime: 3.2,
     chargeTime: rng.range(3.5, 5),
     flashTime: 0,
-    score: base.score,
-    shards: base.shards,
+    // An elite wears a gold ring, triples its hull and always drops a
+    // skill Core. Any Hollow can also grow by eating dropped shards
+    // before the ship collects them — growth counts what it has eaten.
+    elite,
+    growth: 0,
+    enraged: false,
+    score: base.score * (elite ? 3 : 1),
+    shards: base.shards * (elite ? 3 : 1),
   };
 }
 
@@ -203,13 +221,14 @@ export function playerShots(player, input, audio) {
     const spread = (i - (cannons - 1) / 2) * 0.13;
     const noseX = player.x + Math.cos(player.angle) * (player.radius + 4);
     const noseY = player.y + Math.sin(player.angle) * (player.radius + 4);
-    shots.push(createBullet(noseX, noseY, player.angle + spread, player.stats.bulletDamage));
+    shots.push(createBullet(noseX, noseY, player.angle + spread, player.stats.bulletDamage, player.stats.pierce));
   }
   return shots;
 }
 
 export function updateEnemy(enemy, player, dt, elapsed) {
   const base = ENEMY_KINDS[enemy.kind];
+  const speed = base.speed * (enemy.speedMul ?? 1);
   const toPlayer = Math.atan2(player.y - enemy.y, player.x - enemy.x);
 
   if (enemy.kind === 'dart') {
@@ -217,40 +236,53 @@ export function updateEnemy(enemy, player, dt, elapsed) {
     enemy.lungeTime -= dt;
     if (enemy.lungeTime <= 0) {
       enemy.lungeTime = 1.5;
-      enemy.vx = Math.cos(toPlayer) * base.speed * 2.5;
-      enemy.vy = Math.sin(toPlayer) * base.speed * 2.5;
+      enemy.vx = Math.cos(toPlayer) * speed * 2.5;
+      enemy.vy = Math.sin(toPlayer) * speed * 2.5;
     }
     steer(enemy, toPlayer, dt);
     enemy.vx *= Math.max(0, 1 - dt * 1.6);
     enemy.vy *= Math.max(0, 1 - dt * 1.6);
-    enemy.x += (Math.cos(enemy.angle) * base.speed * 0.55 + enemy.vx) * dt;
-    enemy.y += (Math.sin(enemy.angle) * base.speed * 0.55 + enemy.vy) * dt;
+    enemy.x += (Math.cos(enemy.angle) * speed * 0.55 + enemy.vx) * dt;
+    enemy.y += (Math.sin(enemy.angle) * speed * 0.55 + enemy.vy) * dt;
   } else if (enemy.kind === 'weaver') {
     // Weavers approach on a sine path, which makes their line wobble.
     steer(enemy, toPlayer, dt);
     const sway = Math.sin(elapsed * 3.1 + enemy.wobblePhase) * 0.9;
     const dir = enemy.angle + sway * 0.6;
-    enemy.x += Math.cos(dir) * base.speed * dt;
-    enemy.y += Math.sin(dir) * base.speed * dt;
+    enemy.x += Math.cos(dir) * speed * dt;
+    enemy.y += Math.sin(dir) * speed * dt;
+  } else if (enemy.kind === 'stinger') {
+    // Stingers are duelists: they hold a firing range of about 230,
+    // strafing sideways while they close or back away to keep it.
+    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+    steer(enemy, toPlayer, dt);
+    const radial = dist > 260 ? 1 : dist < 190 ? -1 : 0;
+    const strafe = Math.sin(elapsed * 1.7 + enemy.wobblePhase) > 0 ? 1 : -1;
+    const mx = Math.cos(enemy.angle) * radial + Math.cos(enemy.angle + Math.PI / 2) * strafe * 0.7;
+    const my = Math.sin(enemy.angle) * radial + Math.sin(enemy.angle + Math.PI / 2) * strafe * 0.7;
+    enemy.x += mx * speed * dt;
+    enemy.y += my * speed * dt;
   } else if (enemy.kind === 'boss') {
     // The Dreadnought mostly drifts at the ship like a moon falling —
     // until its charge clock fires and it lunges, twice as fast as a
-    // Lance, with a hull that does not notice the impact.
+    // Lance, with a hull that does not notice the impact. Enraged, the
+    // drift and the lunge both quicken by half again.
+    const rage = enemy.enraged ? 1.5 : 1;
     enemy.chargeTime -= dt;
     if (enemy.chargeTime <= 0) {
-      enemy.chargeTime = rngFreeCharge();
-      enemy.vx = Math.cos(toPlayer) * base.speed * 6.4;
-      enemy.vy = Math.sin(toPlayer) * base.speed * 6.4;
+      enemy.chargeTime = rngFreeCharge() / rage;
+      enemy.vx = Math.cos(toPlayer) * speed * 6.4 * rage;
+      enemy.vy = Math.sin(toPlayer) * speed * 6.4 * rage;
     }
     steer(enemy, toPlayer, dt);
     enemy.vx *= Math.max(0, 1 - dt * 1.1);
     enemy.vy *= Math.max(0, 1 - dt * 1.1);
-    enemy.x += (Math.cos(enemy.angle) * base.speed + enemy.vx) * dt;
-    enemy.y += (Math.sin(enemy.angle) * base.speed + enemy.vy) * dt;
+    enemy.x += (Math.cos(enemy.angle) * speed * rage + enemy.vx) * dt;
+    enemy.y += (Math.sin(enemy.angle) * speed * rage + enemy.vy) * dt;
   } else {
     steer(enemy, toPlayer, dt);
-    enemy.x += Math.cos(enemy.angle) * base.speed * dt;
-    enemy.y += Math.sin(enemy.angle) * base.speed * dt;
+    enemy.x += Math.cos(enemy.angle) * speed * dt;
+    enemy.y += Math.sin(enemy.angle) * speed * dt;
   }
   enemy.flashTime = Math.max(0, enemy.flashTime - dt);
 }
@@ -309,4 +341,126 @@ export function overlaps(a, b) {
   const dy = a.y - b.y;
   const r = a.radius + b.radius;
   return dx * dx + dy * dy < r * r;
+}
+
+// ---------------------------------------------------------------------
+// Skill Cores: what the Hollow drop when they break.
+//
+// A kill is not just points — sometimes the wreck leaves a Core, a
+// stolen piece of Hollow skill the ship can fly over and make its own:
+// a burst of speed, a nova, a rack of seeker missiles. Elites always
+// drop one; the Dreadnought drops two; anything else drops one now and
+// then, so a fight can turn on what the last kill left behind.
+// ---------------------------------------------------------------------
+
+export const PICKUP_KINDS = {
+  overdrive: { name: 'OVERDRIVE', letter: 'O', color: '#ffb35c', seconds: 10 },
+  seekers: { name: 'SEEKER MISSILES', letter: 'S', color: '#c9a7ff', seconds: 12 },
+  piercing: { name: 'PIERCING BOLTS', letter: 'P', color: '#4dd8ff', seconds: 12 },
+  nova: { name: 'NOVA BURST', letter: 'N', color: '#ff5d7a', seconds: 0 },
+  aegis: { name: 'AEGIS CELL', letter: 'A', color: '#7ab8ff', seconds: 0 },
+  repair: { name: 'REPAIR NANITES', letter: '+', color: '#7dff9a', seconds: 0 },
+  magnet: { name: 'SHARD VACUUM', letter: 'M', color: '#ffd94d', seconds: 0 },
+};
+
+export function createPickup(kind, x, y, rng) {
+  return {
+    kind: 'pickup',
+    pickupKind: kind,
+    x,
+    y,
+    vx: rng.range(-26, 26),
+    vy: rng.range(-26, 26),
+    radius: 12,
+    bobPhase: rng.range(0, TAU),
+    life: 13,
+  };
+}
+
+export function updatePickup(pickup, player, dt) {
+  pickup.life -= dt;
+  pickup.bobPhase += dt * 3.2;
+  // Cores lean toward a near ship harder than shards do — they want
+  // to be taken — but they will not cross the arena for you.
+  const dx = player.x - pickup.x;
+  const dy = player.y - pickup.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 120 && dist > 1) {
+    pickup.vx += (dx / dist) * 420 * dt;
+    pickup.vy += (dy / dist) * 420 * dt;
+  }
+  pickup.vx *= Math.max(0, 1 - dt * 2.2);
+  pickup.vy *= Math.max(0, 1 - dt * 2.2);
+  pickup.x += pickup.vx * dt;
+  pickup.y += pickup.vy * dt;
+  return pickup.life > 0;
+}
+
+/** A seeker missile: slow off the rack, then it hunts. */
+export function createMissile(x, y, angle) {
+  return {
+    kind: 'missile',
+    x,
+    y,
+    vx: Math.cos(angle) * 190,
+    vy: Math.sin(angle) * 190,
+    radius: 5,
+    angle,
+    damage: 2,
+    life: 2.8,
+  };
+}
+
+export function updateMissile(missile, target, dt) {
+  if (target !== null) {
+    const want = Math.atan2(target.y - missile.y, target.x - missile.x);
+    let diff = want - missile.angle;
+    while (diff > Math.PI) diff -= TAU;
+    while (diff < -Math.PI) diff += TAU;
+    missile.angle += Math.max(-6.2 * dt, Math.min(6.2 * dt, diff));
+  }
+  const speed = Math.min(470, Math.hypot(missile.vx, missile.vy) + 620 * dt);
+  missile.vx = Math.cos(missile.angle) * speed;
+  missile.vy = Math.sin(missile.angle) * speed;
+  missile.x += missile.vx * dt;
+  missile.y += missile.vy * dt;
+  missile.life -= dt;
+  return missile.life > 0 && missile.x > -20 && missile.x < ARENA.width + 20 && missile.y > -20 && missile.y < ARENA.height + 20;
+}
+
+/** A gravity rift: a wound in the arena that drags the fight into it. */
+export function createRift(x, y) {
+  return {
+    kind: 'rift',
+    x,
+    y,
+    radius: 118,
+    life: 12,
+    maxLife: 12,
+    spin: 0,
+  };
+}
+
+export function updateRift(rift, dt) {
+  rift.life -= dt;
+  rift.spin += dt * 1.9;
+  return rift.life > 0;
+}
+
+/** One segment of the ion wake a dash leaves behind: it burns what follows. */
+export function createWake(x, y) {
+  return {
+    kind: 'wake',
+    x,
+    y,
+    radius: 17,
+    life: 1.15,
+    maxLife: 1.15,
+    hit: null,
+  };
+}
+
+export function updateWake(wake, dt) {
+  wake.life -= dt;
+  return wake.life > 0;
 }

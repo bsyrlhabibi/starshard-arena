@@ -10,6 +10,12 @@ export function createAudio() {
   let context = null;
   let master = null;
   let muted = false;
+  // The music: a step sequencer that starts with the first unlock and
+  // never stops — a sub-bass pulse, a minor arpeggio that climbs an
+  // octave as intensity rises, and noise hats on the off-steps.
+  let musicTimer = null;
+  let musicStep = 0;
+  let intensity = 0.2;
 
   function ensure() {
     if (context !== null) return true;
@@ -59,9 +65,36 @@ export function createAudio() {
     source.start(now);
   }
 
+  // A minor, because the dark is minor: A C D E G across two octaves.
+  const ARP = [220, 261.63, 329.63, 392, 440, 523.25, 659.25, 783.99];
+  const BASS = [55, 55, 65.41, 49];
+
+  function musicTick() {
+    if (muted || context === null) return;
+    const step = musicStep;
+    musicStep += 1;
+    if (step % 8 === 0) tone(BASS[(step / 8) % 4], BASS[(step / 8) % 4], 0.5, 'sine', 0.30);
+    if (step % 2 === 0) {
+      const climb = Math.floor(intensity * 4);
+      const note = ARP[(step / 2 + climb * 2) % ARP.length];
+      tone(note, note, 0.16, 'triangle', 0.05 + intensity * 0.05);
+    }
+    if (intensity > 0.45 && step % 4 === 2) noise(0.03, 0.05, 6000);
+    if (intensity > 0.75 && step % 2 === 1) tone(ARP[(step * 3) % ARP.length] * 2, ARP[(step * 3) % ARP.length] * 2, 0.08, 'sine', 0.03);
+  }
+
+  function startMusic() {
+    if (musicTimer !== null || context === null) return;
+    musicTimer = setInterval(musicTick, 205);
+  }
+
   return {
     unlock() {
       if (ensure() && context.state === 'suspended') void context.resume();
+      startMusic();
+    },
+    setIntensity(value) {
+      intensity = Math.max(0, Math.min(1, value));
     },
     toggleMute() {
       muted = !muted;
@@ -90,6 +123,21 @@ export function createAudio() {
     },
     dash() {
       noise(0.16, 0.16, 2600);
+    },
+    corePickup() {
+      // A stolen skill announces itself: three rising notes, quick.
+      tone(660, 660, 0.09, 'sine', 0.18);
+      setTimeout(() => tone(880, 880, 0.09, 'sine', 0.18), 70);
+      setTimeout(() => tone(1320, 1560, 0.14, 'sine', 0.2), 140);
+    },
+    nova() {
+      noise(0.5, 0.5, 800);
+      tone(140, 36, 0.5, 'sawtooth', 0.24);
+    },
+    starfall() {
+      noise(0.8, 0.6, 1100);
+      tone(90, 30, 0.8, 'sawtooth', 0.3);
+      setTimeout(() => tone(1180, 1560, 0.3, 'sine', 0.14), 120);
     },
     upgrade() {
       tone(440, 440, 0.1, 'sine', 0.16);

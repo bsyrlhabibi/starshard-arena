@@ -12,6 +12,8 @@ const INTRODUCTIONS = {
   2: { kind: 'dart', share: 0.55, label: 'LANCES INBOUND' },
   3: { kind: 'splitter', share: 0.45, label: 'BROODS INBOUND' },
   4: { kind: 'weaver', share: 0.45, label: 'WRAITHS INBOUND' },
+  6: { kind: 'bulwark', share: 0.3, label: 'BULWARKS INBOUND' },
+  7: { kind: 'stinger', share: 0.35, label: 'STINGERS INBOUND' },
 };
 
 /** Every fifth wave is a boss wave: one Dreadnought and a light escort. */
@@ -45,8 +47,10 @@ export function waveMix(wave, rng) {
   if (wave >= 2) unlocked.push('dart');
   if (wave >= 3) unlocked.push('splitter');
   if (wave >= 4) unlocked.push('weaver');
+  if (wave >= 6) unlocked.push('bulwark');
+  if (wave >= 7) unlocked.push('stinger');
 
-  const costs = { chaser: 1, dart: 1, splitter: 2, weaver: 2 };
+  const costs = { chaser: 1, dart: 1, splitter: 2, weaver: 2, bulwark: 3, stinger: 2 };
   let guard = 0;
   while (budget > 0 && guard < 200) {
     guard += 1;
@@ -85,10 +89,34 @@ export function healthScale(wave) {
 }
 
 /** Build the spawn queue for a wave: enemy records in arrival order. */
-export function buildWave(wave, rng, width, height) {
-  const scale = healthScale(wave);
+export function buildWave(wave, rng, width, height, difficulty = null) {
+  const scale = healthScale(wave) * (difficulty?.hpMul ?? 1);
   return waveMix(wave, rng).map((kind) => {
     const at = rng.edgePoint(width, height, 30);
-    return createEnemy(kind, at.x, at.y, rng, scale);
+    // One Hollow in twelve arrives gilded: an elite, triple-hulled,
+    // worth triple, and guaranteed to drop a skill Core when it breaks.
+    const elite = kind !== 'boss' && kind !== 'mini' && wave >= 3 && rng.next() < 0.085;
+    const enemy = createEnemy(kind, at.x, at.y, rng, scale, elite);
+    enemy.speedMul = difficulty?.speedMul ?? 1;
+    return enemy;
   });
+}
+
+// ---------------------------------------------------------------------
+// Wave modifiers: from wave 3, half the waves bend a rule, and the
+// banner says which. Rush doubles every shard a kill drops; Surge
+// sends a second, cheaper wave on top of the first; Rift tears gravity
+// wells into the arena that drag Hollow, shards and plasma alike.
+// ---------------------------------------------------------------------
+
+const MODIFIERS = [
+  { id: 'rush', label: 'SHARD RUSH — DOUBLE SHARDS' },
+  { id: 'surge', label: 'SWARM SURGE — THEY SEND MORE' },
+  { id: 'rift', label: 'RIFTED SPACE — GRAVITY IS BROKEN HERE' },
+];
+
+export function rollModifier(wave, rng) {
+  if (wave < 3 || isBossWave(wave)) return null;
+  if (rng.next() > 0.5) return null;
+  return rng.pick(MODIFIERS);
 }
